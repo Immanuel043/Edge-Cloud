@@ -1,4 +1,4 @@
-Optimized Uploads:
+****Optimized Uploads:******
 
 To optimize large file uploads (10-20GB) to your own edge node storage, implement a **resumable, parallel chunked upload system** with server/client optimizations. Here's the complete solution:
 
