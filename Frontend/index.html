@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Edge Cloud Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body class="bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-white font-sans">
+  <div class="flex h-screen">
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white dark:bg-gray-800 p-4 shadow-md">
+      <div class="flex items-center space-x-4 mb-6">
+        <div class="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">U</div>
+        <div>
+          <p class="text-lg font-semibold">Username</p>
+          <p class="text-sm text-gray-500">Edge User</p>
+        </div>
+      </div>
+      <nav class="space-y-2">
+        <a href="#" class="block py-2 px-4 rounded hover:bg-gray-200 dark:hover:bg-gray-700">Dashboard</a>
+        <a href="#" class="block py-2 px-4 rounded hover:bg-gray-200 dark:hover:bg-gray-700">Uploads</a>
+        <a href="#" class="block py-2 px-4 rounded hover:bg-gray-200 dark:hover:bg-gray-700">Settings</a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-8 overflow-y-auto">
+      <header class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold">📊 Overview</h1>
+        <button id="theme-toggle" class="bg-gray-300 dark:bg-gray-700 p-2 rounded">Toggle Theme</button>
+      </header>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div class="bg-white dark:bg-gray-800 p-6 rounded shadow">
+          <h2 class="text-lg font-semibold mb-2">Total Usage</h2>
+          <p class="text-2xl font-bold">7.5 GB</p>
+          <p class="text-sm text-gray-500">of 10 GB used</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800 p-6 rounded shadow">
+          <h2 class="text-lg font-semibold mb-2">Cached Usage</h2>
+          <p class="text-2xl font-bold">2.3 GB</p>
+          <p class="text-sm text-gray-500">Local edge storage</p>
+        </div>
+      </div>
+
+      <div class="bg-white dark:bg-gray-800 p-6 rounded shadow">
+        <h2 class="text-lg font-semibold mb-4">Upload a File</h2>
+        <input type="file" id="file" class="mb-4 block w-full text-sm text-gray-500" />
+        <button id="upload" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Upload</button>
+        <div id="progress" class="mt-4 text-sm"></div>
+      </div>
+    </main>
+  </div>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
