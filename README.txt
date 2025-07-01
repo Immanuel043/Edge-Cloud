@@ -128,3 +128,91 @@ Expect **3-8x faster uploads** compared to single-threaded:
 6. [ ] Test failure recovery (kill client mid-upload)
 
 This architecture ensures **resilient, high-speed uploads** while leveraging your edge infrastructure. For enterprise needs, consider commercial solutions like [Filestash](https://www.filestash.app) or [MinIO](https://min.io) for S3-compatible implementations.
+
+
+/************************* Upload Optmization Techniques *********************************************/
+
+1. Chunking & Upload Pipeline
+What to do
+* On the client (web app using tus-js-client), break files into 2–8 MiB chunks.
+* Compute a content hash (e.g. SHA‑256) per chunk before uploading.
+How it fits
+* tus already gives you chunked, resumable uploads. Hook into its onBeforeRequest or onAfterResponse callbacks to compute and send your hash in a custom header.
+* On the server (FastAPI), read that header and check your PostgreSQL index table (chunk_hash → storage_id) before accepting the chunk—if it already exists, skip storing the payload and just record a reference in your “object manifest” table.
+Libraries / Snippets
+* Python: use hashlib.sha256() over the incoming bytes.
+* PostgreSQL schema: CREATE TABLE chunks (
+*   id           SERIAL PRIMARY KEY,
+*   hash         CHAR(64) UNIQUE NOT NULL,
+*   storage_path TEXT NOT NULL,
+*   size_bytes   INTEGER NOT NULL
+* );
+* CREATE TABLE object_manifests (
+*   object_id    UUID PRIMARY KEY,
+*   version      INT,
+*   chunk_index  INT,
+*   chunk_hash   CHAR(64) REFERENCES chunks(hash)
+* );
+* 
+
+2. Compression (Zstd)
+What to do
+* Once a new chunk arrives, compress it before writing to disk.
+How it fits
+* In your FastAPI upload endpoint, wrap the raw bytes in a Zstd compressor (e.g. zstandard).
+* Store the compressed blob under storage/{first2(hash)}/{hash}.zst.
+Code sketch
+import zstandard as zstd
+
+def store_chunk(raw_bytes, hash):
+    cctx = zstd.ZstdCompressor(level=3)           # tune level for speed
+    comp = cctx.compress(raw_bytes)
+    path = f"/data/chunks/{hash[:2]}/{hash}.zst"
+    with open(path, "wb") as f:
+        f.write(comp)
+    return path
+
+3. Deduplication & CAS
+* By using the hash as your chunk key, you get content‑addressed storage (CAS) by default.
+* PostgreSQL’s unique constraint on chunks.hash ensures only one copy per unique chunk.
+
+4. Redundancy: Erasure Coding vs. Replication
+Options
+1. Simple replication on your home server:
+    * Keep two local copies on separate drives (e.g., RAID 1 software mirror).
+    * Pros: trivial; Cons: 2× overhead, entire‑disk failover.
+2. Erasure coding via a library like PyECLib or Jerasure bindings:
+    * Split each compressed chunk into, say, 6 data + 3 parity shards → 1.5× overhead.
+    * Store shards across multiple USB‑HDDs or even across two machines if you add a second Pi/mini-PC.
+Integration point
+* After compression, feed the compressed bytes into your EC library to produce shards.
+* Round‑robin write shards to distinct mount points.
+
+5. Metadata Store & Performance
+* You already have PostgreSQL for manifests—keep all your chunk hashes, object manifests, and shard‑locations here.
+* Ensure your PG instance is on an SSD (even a small NVMe stick) to keep lookups sub‑millisecond.
+
+6. Tiered Storage
+* Hot: Most‑recently uploaded chunks remain on your SSD.
+* Warm: Move chunks older than 7 days to your secondary HDD (with a cron job that updates a “tier” flag in PG).
+* Cold: If you want long‑term archive offsite, you could add a daily rsync to an inexpensive cloud‑bucket.
+
+7. Putting It All Together
+1. Upload
+    * Client: chunk → hash → tus upload (with hash header).
+    * FastAPI: check PG for chunks.hash.
+        * If exists, record manifest row only.
+        * Else: compress → erasure‑code/shard → write shards → insert chunks row + manifest row.
+2. Read
+    * Given an object ID and version, fetch its chunks from object_manifests.
+    * For each chunk: locate its shards via PG → reassemble (if EC) → decompress → stream to client.
+3. Maintenance
+    * Cron job to tier cold data.
+    * Periodic PG VACUUM/INDEX maintenance to keep lookups fast.
+
+Why This Works for Your Edge Project
+* Bandwidth‑efficient: tus + dedupe + compression minimize upstream traffic.
+* Cost‑effective: only ~1.2–1.6× raw data stored vs. simple 2× mirror.
+* Scalable: PostgreSQL and file‑path directories handle millions of chunks easily.
+* Resilient: Erasure coding lets you lose drives or even machines without data loss.
+All of these pieces are open‑source and have Python bindings, so you can prototype end‑to‑end in days. Once you’ve got the basic chunk → compress → store pipeline, you can layer on tiering, EC, and archive policies incrementally.
